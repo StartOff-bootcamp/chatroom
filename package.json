@@ -10,10 +10,12 @@
   },
   "devDependencies": {
     "@nuxt/types": "latest",
+    "@nuxthub/core": "^0.8.11",
     "@types/node": "latest",
     "nuxt": "latest",
     "supabase": "^2.2.1",
-    "typescript": "latest"
+    "typescript": "latest",
+    "wrangler": "^3.100.0"
   },
   "dependencies": {
     "@headlessui/vue": "^1.7.23",

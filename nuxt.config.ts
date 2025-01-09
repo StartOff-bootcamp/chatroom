@@ -12,7 +12,8 @@ export default defineNuxtConfig({
     "@nuxtjs/tailwindcss",
     "@nuxtjs/color-mode",
     "nuxt-icon",
-    "@nuxtjs/google-fonts"
+    "@nuxtjs/google-fonts",
+    "@nuxthub/core",
   ],
 
   app: {
