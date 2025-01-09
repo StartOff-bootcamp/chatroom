@@ -1,16 +1,14 @@
 export default defineNuxtRouteMiddleware((to) => {
-  const user = useSupabaseUser();
-
+  const { isAuthenticated } = useAuth()
+  
   // Public routes that don't require authentication
-  const publicRoutes = ["/", "/login"];
-
-  // If on login page and logged in, redirect to home
-  if (to.path === "/login" && user.value) {
-    return navigateTo("/");
+  const publicRoutes = ['/login', '/confirm']
+  
+  // If not on a public route and not authenticated, redirect to login
+  if (!publicRoutes.includes(to.path) && !isAuthenticated.value) {
+    return navigateTo('/login', { 
+      replace: true,
+      query: { redirect: to.fullPath }
+    })
   }
-
-  // If not on a public route and not logged in, redirect to login
-  if (!publicRoutes.includes(to.path) && !user.value) {
-    return navigateTo("/login");
-  }
-});
+})

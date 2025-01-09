@@ -1,3 +1,5 @@
+definePageMeta({ middleware: ['auth'] })
+
 <script setup>
 const route = useRoute();
 const channelId = route.params.id;
@@ -8,127 +10,195 @@ const loading = ref(true);
 const error = ref(null);
 const messagesContainer = ref(null);
 const user = useSupabaseUser();
+const client = useSupabaseClient();
 
 // Check if user is admin
 const isAdmin = computed(() => user.value?.user_metadata?.role === "admin");
 
 // Fetch initial data
-const { data: channelData } = await useFetch(`/api/channels/${channelId}`);
+const { data: channelData, error: channelError } = await useFetch(
+  `/api/channels/${channelId}`
+);
 const { data: initialMessages, error: messagesError } = await useFetch(
   `/api/channels/${channelId}/messages`
 );
 
-if (messagesError.value) {
-  error.value = "Kon berichten niet laden";
+if (channelError.value) {
+  error.value =
+    channelError.value?.data?.message ||
+    "Er is een fout opgetreden bij het laden van het kanaal";
+} else if (messagesError.value) {
+  error.value =
+    messagesError.value?.data?.message ||
+    "Er is een fout opgetreden bij het laden van de berichten";
 } else {
   messages.value = initialMessages.value || [];
 }
 
 loading.value = false;
 
-// Auto scroll to bottom
+// Auto scroll to bottom with safety checks
 const scrollToBottom = () => {
-  if (messagesContainer.value) {
-    nextTick(() => {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-    });
-  }
+  nextTick(() => {
+    if (messagesContainer.value && messagesContainer.value.scrollTo) {
+      try {
+        messagesContainer.value.scrollTo({
+          top: messagesContainer.value.scrollHeight,
+          behavior: "smooth",
+        });
+      } catch (e) {
+        console.warn("Could not scroll to bottom:", e);
+      }
+    }
+  });
 };
 
-// Watch for new messages and scroll
-watch(messages, scrollToBottom, { deep: true });
+// Watch for new messages and scroll safely
+watch(
+  messages,
+  () => {
+    if (messages.value?.length) {
+      scrollToBottom();
+    }
+  },
+  { deep: true }
+);
 
 // Subscribe to real-time updates
 onMounted(async () => {
-  // First refresh messages to ensure we have the latest
-  const { data: latestMessages } = await supabase
-    .from("messages")
-    .select("*")
-    .eq("channel_id", channelId)
-    .order("created_at", { ascending: true });
+  if (!user.value || !channelId) return;
 
-  if (latestMessages) {
-    // Fetch user profiles for all messages
-    const userIds = [...new Set(latestMessages.map((m) => m.user_id))];
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("*")
-      .in("id", userIds);
+  try {
+    // First try to update existing visit
+    const { error: updateError } = await client
+      .from("channel_visits")
+      .update({ last_visited_at: new Date().toISOString() })
+      .eq("user_id", user.value.id)
+      .eq("channel_id", channelId);
 
-    // Create a map of user profiles
-    const profileMap = profiles?.reduce((acc, profile) => {
-      acc[profile.id] = profile;
-      return acc;
-    }, {});
-
-    // Combine messages with user profiles
-    messages.value = latestMessages.map((message) => ({
-      ...message,
-      user: profileMap[message.user_id] || null,
-    }));
-    scrollToBottom();
+    // If no existing visit, insert new one
+    if (updateError) {
+      await client.from("channel_visits").insert({
+        user_id: user.value.id,
+        channel_id: channelId,
+        last_visited_at: new Date().toISOString(),
+      });
+    }
+  } catch (err) {
+    console.error("Error recording channel visit:", err);
   }
 
-  // Set up real-time subscription
-  const channel = supabase
-    .channel("public:messages")
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "messages",
-        filter: `channel_id=eq.${channelId}`,
-      },
-      async (payload) => {
-        console.log("New message received:", payload);
+  try {
+    // First refresh messages to ensure we have the latest
+    const { data: latestMessages } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("channel_id", channelId)
+      .order("created_at", { ascending: true });
 
-        // Fetch the message and user profile separately
-        const [messageResult, profileResult] = await Promise.all([
-          supabase
-            .from("messages")
-            .select("*")
-            .eq("id", payload.new.id)
-            .single(),
-          supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", payload.new.user_id)
-            .single(),
-        ]);
+    if (latestMessages) {
+      // Fetch user profiles for all messages
+      const userIds = [...new Set(latestMessages.map((m) => m.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", userIds);
 
-        if (messageResult.data) {
-          const newMessage = {
-            ...messageResult.data,
-            user: profileResult.data || null,
-          };
-          console.log("Adding message to UI:", newMessage);
-          messages.value = [...messages.value, newMessage];
-          await scrollToBottom();
+      // Create a map of user profiles
+      const profileMap =
+        profiles?.reduce((acc, profile) => {
+          acc[profile.id] = profile;
+          return acc;
+        }, {}) || {};
+
+      // Combine messages with user profiles
+      messages.value = latestMessages.map((message) => ({
+        ...message,
+        user: profileMap[message.user_id] || null,
+      }));
+
+      // Scroll after messages are loaded
+      nextTick(() => {
+        scrollToBottom();
+      });
+    }
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel("public:messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `channel_id=eq.${channelId}`,
+        },
+        async (payload) => {
+          console.log("New message received:", payload);
+
+          try {
+            // Fetch the message and user profile separately
+            const [messageResult, profileResult] = await Promise.all([
+              supabase
+                .from("messages")
+                .select("*")
+                .eq("id", payload.new.id)
+                .single(),
+              supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", payload.new.user_id)
+                .single(),
+            ]);
+
+            if (messageResult.data) {
+              const newMessage = {
+                ...messageResult.data,
+                user: profileResult.data || null,
+              };
+              console.log("Adding message to UI:", newMessage);
+              messages.value = [...(messages.value || []), newMessage];
+              nextTick(() => {
+                scrollToBottom();
+              });
+            }
+          } catch (err) {
+            console.error("Error handling new message:", err);
+          }
         }
-      }
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "DELETE",
-        schema: "public",
-        table: "messages",
-        filter: `channel_id=eq.${channelId}`,
-      },
-      (payload) => {
-        console.log("Message deleted:", payload);
-        messages.value = messages.value.filter((m) => m.id !== payload.old.id);
-      }
-    )
-    .subscribe((status) => {
-      console.log(`Realtime subscription status:`, status);
-    });
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "messages",
+          filter: `channel_id=eq.${channelId}`,
+        },
+        (payload) => {
+          console.log("Message deleted:", payload);
+          if (messages.value) {
+            messages.value = messages.value.filter(
+              (m) => m.id !== payload.old.id
+            );
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log(`Realtime subscription status:`, status);
+      });
 
-  // Cleanup
-  onUnmounted(() => {
-    channel.unsubscribe();
-  });
+    // Cleanup
+    onUnmounted(() => {
+      if (channel) {
+        channel.unsubscribe();
+      }
+    });
+  } catch (err) {
+    console.error("Error in channel setup:", err);
+    error.value = "Er is een fout opgetreden bij het laden van het kanaal";
+  }
 });
 
 // Helper function to get user profile
@@ -156,7 +226,7 @@ async function sendMessage() {
     messageInput.value = "";
   } catch (err) {
     console.error("Error sending message:", err);
-    error.value = "Kon bericht niet versturen";
+    error.value = "Je moet ingelogd zijn om berichten te versturen";
   }
 }
 
@@ -181,13 +251,42 @@ async function deleteMessage(messageId) {
   }
 }
 
-// Format message content with links
+// Format message content with links and line breaks
 function formatMessage(content) {
-  // Replace URLs with clickable links
-  return content.replace(
-    /(https?:\/\/[^\s]+)/g,
-    '<a href="$1" target="_blank" class="text-primary hover:underline">$1</a>'
+  return (
+    content
+      // First escape any HTML to prevent XSS
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      // Replace URLs with clickable links
+      .replace(
+        /(https?:\/\/[^\s]+)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">$1</a>'
+      )
+      // Replace line breaks with <br> tags
+      .replace(/\n/g, "<br>")
   );
+}
+
+// Add a computed property for the default avatar background
+const defaultAvatarBg = "bg-yellow-200";
+
+// Add a helper function to get the first letter of name or email
+function getInitial(user) {
+  if (!user) return "?";
+  return (user.name || user.email || "?").charAt(0).toUpperCase();
+}
+
+// Add helper function to get the user's avatar
+function getUserAvatar(user) {
+  if (!user) return null;
+  // Check for Google avatar in user metadata
+  if (user.user_metadata?.avatar_url) {
+    return user.user_metadata.avatar_url;
+  }
+  // Fallback to profile avatar
+  return user.avatar_url;
 }
 </script>
 
@@ -203,10 +302,10 @@ function formatMessage(content) {
     <div v-else>
       <div class="mb-8">
         <h1 class="text-3xl font-bold text-primary flex items-center gap-2">
-          <span>💫</span> {{ channelData?.name }}
+          {{ channelData?.name }}
         </h1>
         <p class="text-gray-600 flex items-center gap-2">
-          <span>📝</span> {{ channelData?.description }}
+          {{ channelData?.description }}
         </p>
       </div>
 
@@ -241,11 +340,20 @@ function formatMessage(content) {
             >
               <div class="flex items-start">
                 <div class="flex-shrink-0">
-                  <img
-                    :src="message.user?.avatar_url || '/default-avatar.png'"
-                    class="w-10 h-10 rounded-full"
-                    alt="User avatar"
-                  />
+                  <div v-if="getUserAvatar(message.user)" class="w-10 h-10">
+                    <img
+                      :src="getUserAvatar(message.user)"
+                      class="w-10 h-10 rounded-full object-cover"
+                      :alt="`${message.user?.name || 'User'}'s avatar`"
+                    />
+                  </div>
+                  <div
+                    v-else
+                    class="w-10 h-10 rounded-full flex items-center justify-center text-gray-700"
+                    :class="defaultAvatarBg"
+                  >
+                    {{ getInitial(message.user) }}
+                  </div>
                 </div>
                 <div class="ml-3 flex-grow">
                   <div class="flex justify-between items-start">
@@ -260,7 +368,6 @@ function formatMessage(content) {
                       <span
                         class="text-xs text-gray-400 flex items-center gap-1"
                       >
-                        <span>🕒</span>
                         {{ new Date(message.created_at).toLocaleString() }}
                       </span>
                     </div>
@@ -281,15 +388,16 @@ function formatMessage(content) {
 
         <div class="border-t pt-4">
           <form @submit.prevent="sendMessage" class="flex gap-2">
-            <input
+            <textarea
               v-model="messageInput"
-              type="text"
+              rows="2"
               placeholder="✍️ Type je bericht..."
-              class="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:border-primary"
+              class="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:border-primary resize-none"
+              @keydown.enter.exact.prevent="sendMessage"
             />
             <button
               type="submit"
-              class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-opacity-90 transition-colors flex items-center gap-2"
+              class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-opacity-90 transition-colors flex items-center gap-2 h-fit"
             >
               <span>📨</span> Verstuur
             </button>

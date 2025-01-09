@@ -8,6 +8,7 @@ const userProfile = ref({
   name: "",
   email: "",
   avatar_url: "",
+  status: "",
 });
 
 // Load user profile data
@@ -32,7 +33,8 @@ async function updateProfile() {
     const { error } = await client.from("profiles").upsert({
       id: user.value.id,
       name: userProfile.value.name,
-      avatar_url: userProfile.value.avatar_url,
+      avatar_url: userProfile.value.avatar_url || null,
+      status: userProfile.value.status || null,
     });
 
     if (error) throw error;
@@ -70,14 +72,33 @@ watch(user, (newUser) => {
 
 <template>
   <div class="max-w-2xl mx-auto">
-    <h1 class="text-3xl font-bold mb-8">Profile Settings</h1>
+    <h1 class="text-3xl font-bold mb-8">Profiel instellingen</h1>
 
     <template v-if="user">
       <div class="bg-white rounded-lg shadow-sm p-6">
         <form @submit.prevent="updateProfile" class="space-y-6">
+          <!-- Avatar Preview -->
+          <div
+            class="flex flex-col items-center space-y-4 pb-6 border-b border-gray-200"
+          >
+            <UserAvatar
+              :avatar-url="userProfile.avatar_url"
+              :name="userProfile.name"
+              :email="user.email"
+              size="xl"
+            />
+            <p class="text-sm text-gray-500">
+              {{
+                userProfile.avatar_url
+                  ? "Avatar URL gedetecteerd"
+                  : "Standaard avatar"
+              }}
+            </p>
+          </div>
+
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
-              Name
+              Naam
             </label>
             <input
               v-model="userProfile.name"
@@ -104,8 +125,29 @@ watch(user, (newUser) => {
             <input
               v-model="userProfile.avatar_url"
               type="url"
+              placeholder="https://example.com/avatar.jpg"
               class="w-full rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:border-primary"
             />
+            <p class="mt-1 text-sm text-gray-500">
+              Voer een URL in naar een afbeelding voor je avatar, of laat leeg
+              voor een letter-avatar
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Status bericht
+            </label>
+            <input
+              v-model="userProfile.status"
+              type="text"
+              placeholder="Wat ben je aan het doen?"
+              maxlength="50"
+              class="w-full rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:border-primary"
+            />
+            <p class="mt-1 text-sm text-gray-500">
+              Maximaal 50 karakters. Dit is zichtbaar voor andere gebruikers.
+            </p>
           </div>
 
           <div class="flex justify-between items-center pt-4">
@@ -114,7 +156,7 @@ watch(user, (newUser) => {
               :disabled="loading"
               class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50"
             >
-              {{ loading ? "Saving..." : "Save Changes" }}
+              {{ loading ? "Bezig met opslaan..." : "Wijzigingen opslaan" }}
             </button>
 
             <button
@@ -122,7 +164,7 @@ watch(user, (newUser) => {
               type="button"
               class="text-danger hover:text-opacity-80 transition-colors"
             >
-              Sign Out
+              Uitloggen
             </button>
           </div>
         </form>
@@ -131,12 +173,12 @@ watch(user, (newUser) => {
 
     <template v-else>
       <div class="text-center">
-        <p class="text-lg mb-4">Please sign in to view your profile</p>
+        <p class="text-lg mb-4">Log in om je profiel te bekijken</p>
         <NuxtLink
           to="/"
           class="inline-block bg-primary text-white px-6 py-2 rounded-lg hover:bg-opacity-90 transition-colors"
         >
-          Go to Sign In
+          Naar inloggen
         </NuxtLink>
       </div>
     </template>

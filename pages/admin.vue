@@ -1,202 +1,168 @@
-<script setup>
-const user = useSupabaseUser();
-const client = useSupabaseClient();
-const { data: channels, refresh } = await useFetch("/api/channels");
-
-// Form state
-const showForm = ref(false);
-const editingChannel = ref(null);
-const formData = ref({
-  name: "",
-  description: "",
-});
-
-// Error handling
-const error = ref(null);
-const success = ref(null);
-
-// Check if user is admin
-const isAdmin = computed(() => user.value?.user_metadata?.role === "admin");
-
-// If not admin, redirect to home
-watchEffect(() => {
-  if (user.value && !isAdmin.value) {
-    navigateTo("/");
-  }
-});
-
-function resetForm() {
-  formData.value = {
-    name: "",
-    description: "",
-  };
-  editingChannel.value = null;
-  showForm.value = false;
-  error.value = null;
-  success.value = null;
-}
-
-function editChannel(channel) {
-  editingChannel.value = channel;
-  formData.value = {
-    name: channel.name,
-    description: channel.description,
-  };
-  showForm.value = true;
-}
-
-async function deleteChannel(channelId) {
-  if (!confirm("Weet je zeker dat je dit kanaal wilt verwijderen?")) return;
-
-  try {
-    const { error: err } = await client
-      .from("channels")
-      .delete()
-      .eq("id", channelId);
-
-    if (err) throw err;
-
-    success.value = "Kanaal succesvol verwijderd";
-    await refresh();
-  } catch (err) {
-    error.value = "Fout bij het verwijderen van het kanaal: " + err.message;
-  }
-}
-
-async function saveChannel() {
-  try {
-    if (editingChannel.value) {
-      // Update existing channel
-      const { error: err } = await client
-        .from("channels")
-        .update({
-          name: formData.value.name,
-          description: formData.value.description,
-        })
-        .eq("id", editingChannel.value.id);
-
-      if (err) throw err;
-      success.value = "Kanaal succesvol bijgewerkt";
-    } else {
-      // Create new channel
-      const { error: err } = await client.from("channels").insert({
-        name: formData.value.name,
-        description: formData.value.description,
-      });
-
-      if (err) throw err;
-      success.value = "Kanaal succesvol aangemaakt";
-    }
-
-    resetForm();
-    await refresh();
-  } catch (err) {
-    error.value = "Fout bij het opslaan van het kanaal: " + err.message;
-  }
-}
-</script>
-
 <template>
-  <div class="max-w-4xl mx-auto">
-    <div class="flex justify-between items-center mb-8">
-      <h1 class="text-3xl font-bold">Kanaalbeheer</h1>
-      <button
-        v-if="!showForm"
-        @click="showForm = true"
-        class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-opacity-90 transition-colors"
-      >
-        Nieuw Kanaal
-      </button>
+  <div class="space-y-8">
+    <!-- User Management Section -->
+    <div class="space-y-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-2xl font-bold text-gray-900">Gebruikersbeheer</h2>
+      </div>
+
+      <!-- Error Message -->
+      <div v-if="error" class="bg-danger/10 text-danger px-4 py-2 rounded-lg">
+        {{ error }}
+      </div>
+
+      <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+          <div class="mt-6 space-y-4">
+            <div class="flex items-center space-x-4">
+              <input
+                v-model="userEmail"
+                type="email"
+                placeholder="Email van gebruiker"
+                class="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+              />
+              <button
+                @click="makeAdmin"
+                :disabled="loading"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
+              >
+                {{ loading ? "Bezig..." : "Maak Admin" }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Error/Success Messages -->
-    <div
-      v-if="error"
-      class="bg-danger bg-opacity-10 text-danger px-4 py-2 rounded-lg mb-4"
-    >
-      {{ error }}
-    </div>
-    <div
-      v-if="success"
-      class="bg-success bg-opacity-10 text-success px-4 py-2 rounded-lg mb-4"
-    >
-      {{ success }}
-    </div>
+    <!-- Channels Section -->
+    <div class="space-y-6">
+      <div class="flex items-center justify-between">
+        <h2 class="text-2xl font-bold text-gray-900">Kanalen beheer</h2>
+        <NuxtLink
+          to="/channels/new"
+          class="inline-flex items-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          Nieuw kanaal
+        </NuxtLink>
+      </div>
 
-    <!-- Channel Form -->
-    <div v-if="showForm" class="bg-white p-6 rounded-lg shadow-sm mb-8">
-      <h2 class="text-xl font-semibold mb-4">
-        {{ editingChannel ? "Kanaal Bewerken" : "Nieuw Kanaal" }}
-      </h2>
-      <form @submit.prevent="saveChannel" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">
-            Naam
-          </label>
-          <input
-            v-model="formData.name"
-            type="text"
-            required
-            class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:border-primary"
-          />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">
-            Beschrijving
-          </label>
-          <textarea
-            v-model="formData.description"
-            rows="3"
-            class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:border-primary"
-          ></textarea>
-        </div>
-        <div class="flex justify-end space-x-4">
-          <button
-            type="button"
-            @click="resetForm"
-            class="text-gray-600 hover:text-gray-800"
-          >
-            Annuleren
-          </button>
-          <button
-            type="submit"
-            class="bg-primary text-white px-6 py-2 rounded-lg hover:bg-opacity-90 transition-colors"
-          >
-            {{ editingChannel ? "Opslaan" : "Aanmaken" }}
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <!-- Channels List -->
-    <div class="space-y-4">
-      <div
-        v-for="channel in channels"
-        :key="channel.id"
-        class="bg-white p-6 rounded-lg shadow-sm flex justify-between items-start"
-      >
-        <div>
-          <h3 class="text-xl font-semibold text-primary">{{ channel.name }}</h3>
-          <p class="text-gray-600">{{ channel.description }}</p>
-          <span class="text-sm text-gray-400">
-            Aangemaakt: {{ new Date(channel.created_at).toLocaleString() }}
-          </span>
-        </div>
-        <div class="flex space-x-4">
-          <button
-            @click="editChannel(channel)"
-            class="text-primary hover:text-opacity-80 transition-colors"
-          >
-            Bewerken
-          </button>
-          <button
-            @click="deleteChannel(channel.id)"
-            class="text-danger hover:text-opacity-80 transition-colors"
-          >
-            Verwijderen
-          </button>
+      <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+          <div class="mt-6 flow-root">
+            <ul role="list" class="-my-5 divide-y divide-gray-200">
+              <li v-for="channel in channels" :key="channel.id" class="py-4">
+                <div class="flex items-center space-x-4">
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-medium text-gray-900">
+                      {{ channel.name }}
+                    </p>
+                    <p class="truncate text-sm text-gray-500">
+                      {{ channel.description }}
+                    </p>
+                  </div>
+                  <div class="flex shrink-0 space-x-2">
+                    <button
+                      @click="editChannel(channel)"
+                      class="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                    >
+                      Bewerken
+                    </button>
+                    <button
+                      @click="deleteChannel(channel.id)"
+                      class="inline-flex items-center rounded-md bg-danger px-2.5 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-danger/90"
+                    >
+                      Verwijderen
+                    </button>
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Channel Modal -->
+  <ChannelModal
+    v-model="showNewChannelModal"
+    :channel="editingChannel"
+    @save="onChannelSave"
+  />
 </template>
+
+<script setup>
+definePageMeta({
+  middleware: ["admin"],
+});
+
+const { setUserRole } = useAdmin();
+const client = useSupabaseClient();
+const loading = ref(false);
+const error = ref(null);
+const userEmail = ref("");
+const showNewChannelModal = ref(false);
+const editingChannel = ref(null);
+
+// Fetch channels
+const { data: channels, refresh: refreshChannels } = await useFetch(
+  "/api/channels"
+);
+
+async function makeAdmin() {
+  if (!userEmail.value) {
+    error.value = "Vul een email adres in";
+    return;
+  }
+
+  loading.value = true;
+  error.value = null;
+
+  try {
+    // First get the user ID from the email
+    const { data: users, error: userError } = await client
+      .from("profiles")
+      .select("id")
+      .eq("email", userEmail.value)
+      .single();
+
+    if (userError) throw userError;
+    if (!users) throw new Error("Gebruiker niet gevonden");
+
+    // Set the user as admin
+    const success = await setUserRole(users.id, "admin");
+    if (success) {
+      userEmail.value = "";
+      error.value = null;
+    }
+  } catch (err) {
+    error.value = err.message || "Er is een fout opgetreden";
+  } finally {
+    loading.value = false;
+  }
+}
+
+// Channel management functions
+const editChannel = (channel) => {
+  editingChannel.value = channel;
+  showNewChannelModal.value = true;
+};
+
+const onChannelSave = () => {
+  refreshChannels();
+  editingChannel.value = null;
+};
+
+const deleteChannel = async (channelId) => {
+  if (!confirm("Weet je zeker dat je dit kanaal wilt verwijderen?")) return;
+
+  try {
+    await $fetch(`/api/channels/${channelId}`, {
+      method: "DELETE",
+    });
+    refreshChannels();
+  } catch (error) {
+    console.error("Error deleting channel:", error);
+  }
+};
+</script>

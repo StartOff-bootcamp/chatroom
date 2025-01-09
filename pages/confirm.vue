@@ -1,58 +1,45 @@
-<script setup>
-const user = useSupabaseUser();
-const loading = ref(true);
-const error = ref(null);
-
-// Handle the auth callback
-onMounted(async () => {
-  try {
-    const route = useRoute();
-    const client = useSupabaseClient();
-
-    // Exchange the code for a session
-    const { error: err } = await client.auth.exchangeCodeForSession(
-      route.query.code?.toString() || ""
-    );
-
-    if (err) throw err;
-
-    // Redirect to home on success
-    navigateTo("/");
-  } catch (err) {
-    error.value = err.message || "Er is een fout opgetreden";
-  } finally {
-    loading.value = false;
-  }
-});
-</script>
-
 <template>
-  <div
-    class="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8"
-  >
-    <div class="max-w-md w-full text-center">
-      <template v-if="loading">
-        <h2 class="text-2xl font-bold mb-4">Even geduld...</h2>
-        <p class="text-gray-600">We verwerken je inloggegevens</p>
-      </template>
+  <div class="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div class="sm:mx-auto sm:w-full sm:max-w-md">
+      <div class="bg-white px-4 py-8 shadow sm:rounded-lg sm:px-10">
+        <div class="text-center">
+          <h2 class="text-xl font-medium">Bezig met inloggen...</h2>
+          <p class="mt-2 text-sm text-gray-500">
+            Een moment geduld alstublieft
+          </p>
 
-      <template v-else-if="error">
-        <h2 class="text-2xl font-bold mb-4 text-danger">Oeps!</h2>
-        <p class="text-gray-600 mb-4">{{ error }}</p>
-        <NuxtLink
-          to="/login"
-          class="text-primary hover:text-opacity-80 transition-colors"
-        >
-          Terug naar inloggen
-        </NuxtLink>
-      </template>
-
-      <template v-else-if="user">
-        <h2 class="text-2xl font-bold mb-4 text-success">
-          Succesvol ingelogd!
-        </h2>
-        <p class="text-gray-600 mb-4">Je wordt doorgestuurd...</p>
-      </template>
+          <div v-if="error" class="mt-4 rounded-md bg-danger/10 p-4">
+            <div class="flex">
+              <div class="ml-3">
+                <h3 class="text-sm font-medium text-danger">
+                  {{ error }}
+                </h3>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
+
+<script setup>
+const route = useRoute();
+const error = ref(null);
+
+// Handle the authentication callback
+onMounted(async () => {
+  try {
+    const { error: err } = await useSupabaseClient().auth.getSession();
+    if (err) throw err;
+
+    // Get the redirect URL from query params
+    const redirectTo = route.query.redirect?.toString() || "/";
+
+    // Redirect to the intended page or home
+    navigateTo(redirectTo, { replace: true });
+  } catch (err) {
+    error.value = err.message || "Er is een fout opgetreden bij het inloggen";
+  }
+});
+</script>

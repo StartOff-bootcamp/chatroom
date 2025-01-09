@@ -2,11 +2,17 @@
 import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
-  modules: ["@nuxtjs/supabase", "@nuxtjs/tailwindcss"],
+  modules: [
+    "@nuxtjs/supabase",
+    "@nuxtjs/tailwindcss",
+    "@nuxtjs/color-mode",
+    "nuxt-icon",
+    "@nuxtjs/google-fonts"
+  ],
 
   app: {
     head: {
-      title: process.env.NUXT_PUBLIC_APP_NAME || "StartOff Chat 🚀",
+      title: process.env.NUXT_PUBLIC_APP_NAME || "StartOff community 🚀",
       meta: [
         { charset: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
@@ -15,6 +21,9 @@ export default defineNuxtConfig({
           content: "Interactive community for AI coding course students",
         },
       ],
+      link: [
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }
+      ]
     },
   },
 
@@ -26,7 +35,7 @@ export default defineNuxtConfig({
 
     // Public keys (exposed to client)
     public: {
-      appName: process.env.NUXT_PUBLIC_APP_NAME || "StartOff Chat 🚀",
+      appName: process.env.NUXT_PUBLIC_APP_NAME || "StartOff community 🚀",
       appUrl: process.env.NUXT_PUBLIC_APP_URL || "http://localhost:3000",
     },
   },
@@ -47,7 +56,19 @@ export default defineNuxtConfig({
         persistSession: true,
         autoRefreshToken: true,
       },
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
     },
+  },
+
+  // Color mode configuration
+  colorMode: {
+    classSuffix: '',
+    preference: 'light',
+    fallback: 'light',
   },
 
   // Tailwind configuration
@@ -69,6 +90,12 @@ export default defineNuxtConfig({
             danger: "#DC3545",
             background: "#F8F9FA",
             text: "#343A40",
+            "secondary-1": "#FFC107",
+            "secondary-2": "#DC3545",
+          },
+          fontFamily: {
+            sans: ['IBM Plex Sans', 'sans-serif'],
+            heading: ['Sora', 'sans-serif'],
           },
         },
       },
@@ -76,4 +103,13 @@ export default defineNuxtConfig({
   },
 
   compatibilityDate: "2025-01-09",
+
+  // Google Fonts configuration
+  googleFonts: {
+    families: {
+      'IBM+Plex+Sans': [400, 700],
+      'Sora': [800],
+    },
+    display: 'swap',
+  },
 });
