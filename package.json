@@ -1,0 +1,23 @@
+{
+  "name": "chatroom",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "devDependencies": {
+    "@nuxt/types": "latest",
+    "@types/node": "latest",
+    "nuxt": "latest",
+    "supabase": "^2.2.1",
+    "typescript": "latest"
+  },
+  "dependencies": {
+    "@nuxtjs/supabase": "latest",
+    "@nuxtjs/tailwindcss": "latest",
+    "h3": "latest"
+  }
+}
