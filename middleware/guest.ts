@@ -1,8 +1,9 @@
 export default defineNuxtRouteMiddleware((to) => {
-  const { isAuthenticated } = useAuth()
-  
-  // If user is authenticated, redirect to home
-  if (isAuthenticated.value) {
-    return navigateTo('/')
+  const user = useSupabaseUser();
+
+  // If user is already logged in and trying to access auth pages
+  if (user.value) {
+    // Redirect to home page
+    return navigateTo('/');
   }
-}) 
+}); 

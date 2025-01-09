@@ -2,10 +2,6 @@
 import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
-  ssr: true, // Enables server-side rendering
-  nitro: {
-    preset: 'node-server', // Use the Node.js server preset (or choose another based on your deployment target)
-  },
 
   modules: [
     "@nuxtjs/supabase",
@@ -15,6 +11,14 @@ export default defineNuxtConfig({
     "@nuxtjs/google-fonts",
     "@nuxthub/core",
   ],
+
+  // Global middleware for authentication
+  routeRules: {
+    '/': { redirect: '/login' },
+    '/login': { middleware: false },
+    '/confirm': { middleware: false },
+    '/**': { middleware: 'auth' }
+  },
 
   app: {
     head: {

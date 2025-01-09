@@ -1,3 +1,68 @@
+<script setup>
+import { ref } from "vue";
+
+const client = useSupabaseClient();
+const route = useRoute();
+const loading = ref(false);
+const error = ref(null);
+const successMessage = ref(null);
+
+const formData = ref({
+  email: "",
+});
+
+async function handleGoogleLogin() {
+  loading.value = true;
+  error.value = null;
+  successMessage.value = null;
+
+  try {
+    const { error: err } = await client.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/confirm?redirect=${
+          route.query.redirect || "/"
+        }`,
+      },
+    });
+
+    if (err) throw err;
+  } catch (err) {
+    error.value =
+      err.message || "Er is een fout opgetreden bij het inloggen met Google";
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function handleMagicLink() {
+  loading.value = true;
+  error.value = null;
+  successMessage.value = null;
+
+  try {
+    const { error: err } = await client.auth.signInWithOtp({
+      email: formData.value.email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/confirm?redirect=${
+          route.query.redirect || "/"
+        }`,
+      },
+    });
+
+    if (err) throw err;
+
+    successMessage.value = "Check je email voor de inloglink";
+  } catch (err) {
+    error.value =
+      err.message ||
+      "Er is een fout opgetreden bij het versturen van de magic link";
+  } finally {
+    loading.value = false;
+  }
+}
+</script>
+
 <template>
   <div class="flex flex-col items-start pt-8">
     <div class="w-full max-w-md mx-auto">
@@ -122,74 +187,3 @@
     </div>
   </div>
 </template>
-
-<script setup>
-definePageMeta({
-  middleware: ["guest"],
-});
-
-const client = useSupabaseClient();
-const route = useRoute();
-const loading = ref(false);
-const error = ref(null);
-const successMessage = ref(null);
-
-const formData = ref({
-  email: "",
-});
-
-async function handleGoogleLogin() {
-  loading.value = true;
-  error.value = null;
-  successMessage.value = null;
-
-  const redirectTo = route.query.redirect?.toString() || "/";
-
-  try {
-    const { error: err } = await client.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${
-          window.location.origin
-        }/confirm?redirect=${encodeURIComponent(redirectTo)}`,
-      },
-    });
-
-    if (err) throw err;
-  } catch (err) {
-    error.value =
-      err.message || "Er is een fout opgetreden bij het inloggen met Google";
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function handleMagicLink() {
-  loading.value = true;
-  error.value = null;
-  successMessage.value = null;
-
-  try {
-    const { error: err } = await client.auth.signInWithOtp({
-      email: formData.value.email,
-      options: {
-        emailRedirectTo: `${
-          window.location.origin
-        }/confirm?redirect=${encodeURIComponent(
-          route.query.redirect?.toString() || "/"
-        )}`,
-      },
-    });
-
-    if (err) throw err;
-
-    successMessage.value = "Check je email voor de inloglink";
-  } catch (err) {
-    error.value =
-      err.message ||
-      "Er is een fout opgetreden bij het versturen van de magic link";
-  } finally {
-    loading.value = false;
-  }
-}
-</script>

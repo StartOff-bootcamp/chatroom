@@ -9,6 +9,7 @@
     "postinstall": "nuxt prepare"
   },
   "devDependencies": {
+    "@nuxt/icon": "^1.10.3",
     "@nuxt/types": "latest",
     "@nuxthub/core": "^0.8.11",
     "@types/node": "latest",
