@@ -75,6 +75,57 @@ A real-time community chat platform built with Nuxt 3, Supabase, and Tailwind CS
 2. Run the migrations in `supabase/migrations`
 3. Enable Google OAuth in your Supabase project settings
 
+### Database Schema
+
+#### Channels Table
+
+```sql
+create table channels (
+  id uuid default uuid_generate_v4() primary key,
+  name text not null,
+  description text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+```
+
+#### Messages Table
+
+```sql
+create table messages (
+  id uuid default uuid_generate_v4() primary key,
+  content text not null,
+  user_id uuid references auth.users not null,
+  channel_id uuid references channels not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+```
+
+#### Profiles Table
+
+```sql
+create table profiles (
+  id uuid references auth.users on delete cascade primary key,
+  name text,
+  avatar_url text,
+  status text,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+```
+
+#### Channel Visits Table
+
+```sql
+create table channel_visits (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid references auth.users not null,
+  channel_id uuid references channels not null,
+  last_visited_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique(user_id, channel_id)
+);
+```
+
+Each table has Row Level Security (RLS) enabled with appropriate policies to ensure data security.
+
 ## 📦 Project Structure
 
 - `/components` - Reusable Vue components
