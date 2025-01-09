@@ -2,6 +2,11 @@
 import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
+  ssr: true, // Enables server-side rendering
+  nitro: {
+    preset: 'node-server', // Use the Node.js server preset (or choose another based on your deployment target)
+  },
+
   modules: [
     "@nuxtjs/supabase",
     "@nuxtjs/tailwindcss",
