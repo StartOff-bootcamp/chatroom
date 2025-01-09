@@ -14,27 +14,11 @@
 </template>
 
 <script setup>
-const client = useSupabaseClient();
 const route = useRoute();
-const router = useRouter();
 
-// Handle the authentication callback
-onMounted(async () => {
-  try {
-    // Get the session after OAuth callback
-    const { error: err } = await client.auth.getSession();
-    if (err) throw err;
-
-    // Get the redirect URL from query params and decode it
-    const redirectTo = route.query.redirect?.toString();
-    const decodedRedirect = redirectTo ? decodeURIComponent(redirectTo) : "/";
-
-    // Redirect to the intended page or home
-    await navigateTo(decodedRedirect);
-  } catch (err) {
-    console.error("Error during authentication:", err);
-    // On error, redirect to login
-    await navigateTo("/login");
-  }
+// Handle the redirect after successful authentication
+onMounted(() => {
+  const redirect = route.query.redirect?.toString() || "/";
+  navigateTo(redirect);
 });
 </script>

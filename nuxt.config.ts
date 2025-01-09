@@ -52,7 +52,11 @@ export default defineNuxtConfig({
 
   // Supabase configuration
   supabase: {
-    redirect: false,
+    redirectOptions: {
+      login: '/confirm',
+      callback: '/confirm',
+      exclude: ['/', '/login'],
+    },
     cookieOptions: {
       maxAge: 365 * 24 * 60 * 60, // 1 year
       sameSite: "lax",
